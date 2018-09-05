@@ -32,13 +32,39 @@ const getCookiesFile = async () => {
     })
 }
 
+const getCookie = async (page) => {
+    const cookiesAcc = await page.cookies('https://facebook.com');
+    await fs.writeFile('app/cookies.txt', JSON.stringify(cookiesAcc), (err) => { });
+}
+
+const isLoginFB = async (page) => {
+    const response = await page.goto('https://facebook.com/settings');
+    const chain = response.request().redirectChain();
+
+    for (let i = 0, length = chain.length; i < length; i++) {
+        const item = chain[i];
+        const currentUrl = item.frame().url();
+        if (currentUrl.indexOf('/login.php') !== -1) return false;
+    }
+
+    return true;
+}
+
 const loginFacebook = async (page) => {
     const cookies = await getCookiesFile();
     if (!!cookies) {
         const arrCookies = JSON.parse(cookies);
-        loginCookie(page, arrCookies);
+        await loginCookie(page, arrCookies);
+    }
+
+    const isLogin = await isLoginFB(page);
+
+    if (!isLogin) {
+        await page.goto('https://facebook.com');
+        await loginAcc(page);
+        await getCookie(page);
     } else {
-        loginAcc(page);
+        await page.goto('https://facebook.com');
     }
 }
 
@@ -46,17 +72,13 @@ const loginFacebook = async (page) => {
 (async () => {
     const browser = await puppeteer.launch();
     const page = await browser.newPage();
-    await page.goto('https://facebook.com');
 
+    await loginFacebook(page);
 
-    await page.goto('https://facebook.com');
-
-    const cookiesAcc = await page.cookies('https://facebook.com');
-
-    const stories = await page.evaluate(() => {
-        const profilePosts = Array.from(document.querySelectorAll(`.userContentWrapper span[data-ft='{"tn":"k"}'] a`));
-        return profilePosts.dataset;
-    })
+    // const stories = await page.evaluate(() => {
+    //     const profilePosts = Array.from(document.querySelectorAll(`.userContentWrapper span[data-ft='{"tn":"k"}'] a`));
+    //     return profilePosts.dataset;
+    // })
 
     await page.screenshot({
         path: screenshot,
@@ -65,6 +87,5 @@ const loginFacebook = async (page) => {
 
     await browser.close();
 
-    await console.log(JSON.stringify(stories));
-    // await fs.writeFile('app/cookies.txt', JSON.stringify(cookiesAcc), (err) => {});
+    // await console.log(JSON.stringify(stories));
 })();
